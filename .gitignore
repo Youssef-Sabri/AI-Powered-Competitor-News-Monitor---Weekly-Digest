@@ -1,0 +1,30 @@
+# System & OS Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Environment & Credentials
+.env
+.env.*
+*.pem
+*.key
+
+# Dependencies & Temporary Files
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Test & Local Scratch Files
+scratch/
+*.log
+
+# IDE & Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Workflow & Agent Files
+workflow.json
+.agents/AGENTS.md

@@ -1,0 +1,358 @@
+{
+  "name": "AI-Powered Competitor News Monitor & Weekly Digest",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks"
+            }
+          ]
+        }
+      },
+      "id": "f14d3f81-d697-405c-a847-b80caf61bd46",
+      "name": "Weekly Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        112,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://venturebeat.com/category/ai/feed",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "n8n-competitor-monitor/1.0"
+            },
+            {
+              "name": "Accept",
+              "value": "application/rss+xml, application/xml, text/xml"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "2b6795f4-41b0-4e15-b92d-eebbf029e06e",
+      "name": "Fetch VentureBeat AI Feed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        320,
+        192
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "7905ecf5-02cf-453d-89f4-f10f5924ad44",
+      "name": "Combine RSS Feeds",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        528,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://techcrunch.com/category/artificial-intelligence/feed/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "n8n-competitor-monitor/1.0"
+            },
+            {
+              "name": "Accept",
+              "value": "application/rss+xml, application/xml, text/xml"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "1589bd5b-26a3-4edb-bd8d-8e0319e8c1aa",
+      "name": "Fetch TechCrunch AI Feed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        320,
+        384
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst items = $input.all();\nconst fetchDate = new Date().toISOString();\n\nfunction cleanText(text) {\n  if (!text) return '';\n  return text\n    .replace(/<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>/gi, '$1')\n    .replace(/<[^>]+>/g, '')\n    .replace(/&nbsp;/gi, ' ')\n    .replace(/&amp;/gi, '&')\n    .replace(/&lt;/gi, '<')\n    .replace(/&gt;/gi, '>')\n    .replace(/&quot;/gi, '\"')\n    .replace(/&#39;/gi, \"'\")\n    .replace(/&#8217;/gi, \"'\")\n    .replace(/&#8216;/gi, \"'\")\n    .replace(/&#8220;/gi, '\"')\n    .replace(/&#8221;/gi, '\"')\n    .replace(/&#8211;/gi, \"-\")\n    .replace(/&#8212;/gi, \"--\")\n    .replace(/&#8230;/gi, \"...\")\n    .replace(/&#[0-9]+;/g, '')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nfunction extractXmlTag(xml, tag) {\n  if (!xml) return '';\n  const cdataRegex = new RegExp('<' + tag + '[^>]*>\\\\s*<!\\\\[CDATA\\\\[([\\\\s\\\\S]*?)\\\\]\\\\]>\\\\s*</' + tag + '>', 'i');\n  let match = xml.match(cdataRegex);\n  if (match) return cleanText(match[1]);\n  const plainRegex = new RegExp('<' + tag + '[^>]*>([\\\\s\\\\S]*?)</' + tag + '>', 'i');\n  match = xml.match(plainRegex);\n  if (match) return cleanText(match[1]);\n  return '';\n}\n\nfunction extractLink(itemXml) {\n  let link = extractXmlTag(itemXml, 'feedburner:origLink') || extractXmlTag(itemXml, 'link');\n  if (!link || !link.startsWith('http')) {\n    const hrefMatch = itemXml.match(/<link[^>]+href=[\"']([^\"']+)[\"']/i);\n    if (hrefMatch) link = hrefMatch[1];\n  }\n  if (!link || !link.startsWith('http')) {\n    const guid = extractXmlTag(itemXml, 'guid');\n    if (guid && guid.startsWith('http')) link = guid;\n  }\n  return link ? link.trim() : '';\n}\n\nfunction extractPubDate(itemXml) {\n  return extractXmlTag(itemXml, 'pubDate') || extractXmlTag(itemXml, 'dc:date') || extractXmlTag(itemXml, 'published') || extractXmlTag(itemXml, 'updated');\n}\n\nfunction extractDescription(itemXml) {\n  const desc = extractXmlTag(itemXml, 'description') || extractXmlTag(itemXml, 'content:encoded') || extractXmlTag(itemXml, 'summary') || extractXmlTag(itemXml, 'content');\n  return cleanText(desc);\n}\n\nfunction extractItemsFromXml(xmlText, sourceName) {\n  if (!xmlText || typeof xmlText !== 'string') return [];\n  let itemMatches = xmlText.match(/<item[\\s>][\\s\\S]*?<\\/item>/gi);\n  if (!itemMatches || itemMatches.length === 0) {\n    itemMatches = xmlText.match(/<entry[\\s>][\\s\\S]*?<\\/entry>/gi) || [];\n  }\n  return itemMatches.map(itemXml => {\n    const title = extractXmlTag(itemXml, 'title');\n    const link = extractLink(itemXml);\n    const pubDate = extractPubDate(itemXml);\n    const description = extractDescription(itemXml);\n    const author = extractXmlTag(itemXml, 'dc:creator') || extractXmlTag(itemXml, 'author') || extractXmlTag(itemXml, 'name');\n    const categoryMatches = itemXml.match(/<category[^>]*>(?:<!\\\\[CDATA\\\\[)?([\\\\s\\\\S]*?)(?:\\\\]\\\\]>)?<\\/category>/gi) || [];\n    const categories = categoryMatches.map(c => {\n      const m = c.match(/<category[^>]*>(?:<!\\\\[CDATA\\\\[)?([\\\\s\\\\S]*?)(?:\\\\]\\\\]>)?<\\/category>/i);\n      return m ? cleanText(m[1]) : '';\n    }).filter(Boolean).slice(0, 5);\n    let timestamp = 0;\n    if (pubDate) {\n      const parsed = Date.parse(pubDate);\n      if (!isNaN(parsed)) timestamp = parsed;\n    }\n    const truncatedDesc = description.length > 300 ? description.substring(0, 300) + '...' : description;\n    return {\n      title: title,\n      link: link,\n      pubDate: pubDate,\n      timestamp: timestamp,\n      description: truncatedDesc,\n      author: author,\n      categories: categories,\n      source: sourceName\n    };\n  });\n}\n\nconst allArticles = [];\nfor (let i = 0; i < items.length; i++) {\n  const item = items[i];\n  let xmlText = '';\n  if (typeof item.json.data === 'string') {\n    xmlText = item.json.data;\n  } else if (typeof item.json.body === 'string') {\n    xmlText = item.json.body;\n  } else if (typeof item.json === 'string') {\n    xmlText = item.json;\n  } else if (item.json && typeof item.json === 'object') {\n    xmlText = JSON.stringify(item.json);\n  }\n  const xmlLower = xmlText.toLowerCase();\n  let sourceName = 'Unknown Source';\n  if (xmlLower.includes('venturebeat')) {\n    sourceName = 'VentureBeat';\n  } else if (xmlLower.includes('techcrunch')) {\n    sourceName = 'TechCrunch';\n  } else {\n    sourceName = i === 0 ? 'VentureBeat' : 'TechCrunch';\n  }\n  const parsed = extractItemsFromXml(xmlText, sourceName);\n  allArticles.push(...parsed);\n}\n\nconst sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);\nconst filtered = allArticles\n  .filter(a => a.title && a.link && a.timestamp >= sevenDaysAgo)\n  .sort((a, b) => b.timestamp - a.timestamp)\n  .slice(0, 25);\n\nconst seenTitles = new Set();\nconst deduplicated = filtered.filter(a => {\n  const normalized = a.title.toLowerCase().trim();\n  if (seenTitles.has(normalized)) return false;\n  seenTitles.add(normalized);\n  return true;\n});\n\nreturn [{\n  json: {\n    articles: deduplicated,\n    articleCount: deduplicated.length,\n    fetchDate: fetchDate,\n    sources: ['VentureBeat AI', 'TechCrunch AI'],\n    dateRange: {\n      from: new Date(sevenDaysAgo).toISOString(),\n      to: fetchDate\n    }\n  }\n}];\n"
+      },
+      "id": "37d89c3c-063b-4d7b-a321-d998779d212f",
+      "name": "Parse & Filter Articles",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        720,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are acting as a senior market intelligence analyst reviewing this week's competitor and industry news.\n\nMETADATA:\n- Articles collected: {{ $json.articleCount }}\n- Date range: {{ $json.dateRange.from }} to {{ $json.dateRange.to }}\n- Sources: {{ $json.sources.join(\", \") }}\n\nARTICLES:\n```json\n{{ JSON.stringify($json.articles, null, 2) }}\n```\n\nYOUR TASK:\nProduce a structured weekly intelligence digest with the following sections:\n\n## 1. Executive Summary\nWrite a 2-3 sentence overview of the week's most significant developments.\n\n## 2. Key Trends & Themes (3-5)\nFor each trend:\n- **Trend name** — 1-2 sentence explanation of what is happening\n- **Why it matters** — 1 sentence on competitive or strategic impact\n- **Sources:** [Article Title](link) for each supporting article\n\n## 3. Notable Funding & M&A\nList any funding rounds, acquisitions, or partnerships mentioned. Format:\n- **Company** — $X raised / acquired by Y — [source](link)\nIf none, state \"No significant funding or M&A activity this week.\"\n\n## 4. Competitive Watchlist\nIdentify 2-3 companies or products that appear most active or impactful this week and why.\n\n## 5. Action Items\nProvide 2-3 suggested follow-up actions for a product or strategy team.\n\nFORMAT RULES:\n- Use clean Markdown with headers, bold, and bullet points\n- Every claim must cite at least one source article\n- Be concise — total output should be 400-600 words\n- No filler or generic statements\n- If data is insufficient for a section, note it explicitly",
+        "options": {
+          "systemMessage": "You are a senior market intelligence analyst at a competitive technology company. You specialize in synthesizing high volumes of news into concise, actionable strategic intelligence for executive decision-makers. Your outputs are always data-driven, cite sources, and avoid speculation. You write in a professional but readable tone suitable for a C-suite audience."
+        }
+      },
+      "id": "d152cf34-9be0-4dff-81b1-d9c08d548917",
+      "name": "AI Market Intelligence Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1120,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash-lite",
+        "options": {
+          "temperature": 0.2,
+          "topK": 40,
+          "topP": 0.8
+        }
+      },
+      "id": "87b0ef42-efd5-44e4-9c64-612b61e3b0c8",
+      "name": "Google Gemini 3.5 Flash Lite Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        480
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "ttdYfeeoXAoYtDHa",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst aiOutput = $json.output || '';\nconst parseData = $('Parse & Filter Articles').first()?.json || {};\nconst articleCount = parseData.articleCount ?? $json.articleCount ?? 0;\nconst fetchDate = parseData.fetchDate || $json.fetchDate || new Date().toISOString();\nconst dateStr = new Date(fetchDate).toLocaleDateString('en-US', {\n  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'\n});\n\nfunction markdownToHtml(md) {\n  if (!md) return '';\n  const lines = md.replace(/\\r\\n/g, '\\n').split('\\n');\n  const htmlLines = [];\n  let inList = false;\n  \n  for (let i = 0; i < lines.length; i++) {\n    let line = lines[i];\n    let trimmed = line.trim();\n    \n    if (trimmed === '') {\n      if (inList) {\n        htmlLines.push('</ul>');\n        inList = false;\n      }\n      continue;\n    }\n    \n    if (trimmed.startsWith('## ')) {\n      if (inList) {\n        htmlLines.push('</ul>');\n        inList = false;\n      }\n      const headerText = trimmed.replace(/^##\\s+/, '');\n      const formattedHeader = headerText\n        .replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>')\n        .replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '<a href=\"$2\" class=\"link-text\" style=\"color: #2563eb; text-decoration: underline;\">$1</a>');\n      htmlLines.push('<h2 class=\"heading-text\" style=\"color: #1e293b; font-size: 18px; margin-top: 24px; margin-bottom: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; font-weight: 600;\">' + formattedHeader + '</h2>');\n      continue;\n    }\n    \n    if (trimmed.startsWith('# ')) {\n      if (inList) {\n        htmlLines.push('</ul>');\n        inList = false;\n      }\n      const headerText = trimmed.replace(/^#\\s+/, '');\n      const formattedHeader = headerText\n        .replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>')\n        .replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '<a href=\"$2\" class=\"link-text\" style=\"color: #2563eb; text-decoration: underline;\">$1</a>');\n      htmlLines.push('<h1 class=\"heading-text\" style=\"color: #0f172a; font-size: 22px; margin-top: 24px; margin-bottom: 12px; font-weight: 700;\">' + formattedHeader + '</h1>');\n      continue;\n    }\n    \n    if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {\n      const itemContent = trimmed.substring(2);\n      const formattedItem = itemContent\n        .replace(/\\*\\*([^*]+)\\*\\*/g, '<strong class=\"text-primary\" style=\"color: #0f172a;\">$1</strong>')\n        .replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '<a href=\"$2\" class=\"link-text\" style=\"color: #2563eb; text-decoration: underline; font-weight: 500;\">$1</a>');\n      \n      if (!inList) {\n        htmlLines.push('<ul class=\"text-secondary\" style=\"margin: 12px 0; padding-left: 20px; color: #334155;\">');\n        inList = true;\n      }\n      htmlLines.push('<li style=\"margin-bottom: 8px; line-height: 1.6;\">' + formattedItem + '</li>');\n      continue;\n    }\n    \n    if (inList && (line.startsWith('  ') || line.startsWith('\\t'))) {\n      const continuationText = trimmed\n        .replace(/\\*\\*([^*]+)\\*\\*/g, '<strong class=\"text-primary\" style=\"color: #0f172a;\">$1</strong>')\n        .replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '<a href=\"$2\" class=\"link-text\" style=\"color: #2563eb; text-decoration: underline; font-weight: 500;\">$1</a>');\n      \n      const lastIdx = htmlLines.length - 1;\n      if (lastIdx >= 0 && htmlLines[lastIdx].endsWith('</li>')) {\n        htmlLines[lastIdx] = htmlLines[lastIdx].slice(0, -5) + '<br>' + continuationText + '</li>';\n      } else {\n        htmlLines.push(continuationText);\n      }\n      continue;\n    }\n    \n    if (inList) {\n      htmlLines.push('</ul>');\n      inList = false;\n    }\n    \n    const formattedParagraph = trimmed\n      .replace(/\\*\\*([^*]+)\\*\\*/g, '<strong class=\"text-primary\" style=\"color: #0f172a;\">$1</strong>')\n      .replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '<a href=\"$2\" class=\"link-text\" style=\"color: #2563eb; text-decoration: underline; font-weight: 500;\">$1</a>');\n    \n    htmlLines.push('<p class=\"text-secondary\" style=\"margin: 0 0 12px 0; color: #334155; line-height: 1.6; font-size: 15px;\">' + formattedParagraph + '</p>');\n  }\n  \n  if (inList) {\n    htmlLines.push('</ul>');\n  }\n  \n  return htmlLines.join('\\n');\n}\n\nconst htmlContent = markdownToHtml(aiOutput);\n\nconst emailHtml = '<!DOCTYPE html>'\n  + '<html lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\">'\n  + '<head>'\n  + '<meta charset=\"utf-8\">'\n  + '<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">'\n  + '<meta name=\"color-scheme\" content=\"light dark\">'\n  + '<meta name=\"supported-color-schemes\" content=\"light dark\">'\n  + '<title>AI &amp; Automation Weekly Digest</title>'\n  + '<style>'\n  + ':root { color-scheme: light dark; supported-color-schemes: light dark; }'\n  + 'body { margin: 0 !important; padding: 0 !important; width: 100% !important; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }'\n  + '@media (prefers-color-scheme: dark) {'\n  + '  body, .email-body { background-color: #0f172a !important; color: #f8fafc !important; }'\n  + '  .card-bg { background-color: #1e293b !important; border-color: #334155 !important; }'\n  + '  .header-bg { background-color: #0f172a !important; background-image: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #312e81 100%) !important; }'\n  + '  .header-title, .header-title span { color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }'\n  + '  .header-date, .header-date span { color: #cbd5e1 !important; -webkit-text-fill-color: #cbd5e1 !important; }'\n  + '  .text-primary { color: #f8fafc !important; }'\n  + '  .text-secondary { color: #cbd5e1 !important; }'\n  + '  .text-muted { color: #94a3b8 !important; }'\n  + '  .heading-text { color: #38bdf8 !important; border-color: #334155 !important; }'\n  + '  .link-text { color: #60a5fa !important; }'\n  + '  .divider { border-color: #334155 !important; }'\n  + '}'\n  + '</style>'\n  + '</head>'\n  + '<body class=\"email-body\" style=\"margin: 0; padding: 20px 10px; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif;\">'\n  + '<table role=\"presentation\" width=\"100%\" border=\"0\" cellspacing=\"0\" cellpadding=\"0\">'\n  + '<tr><td align=\"center\">'\n  + '<table role=\"presentation\" width=\"100%\" border=\"0\" cellspacing=\"0\" cellpadding=\"0\" style=\"max-width: 680px; margin: 0 auto;\">'\n  + '<tr>'\n  + '<td class=\"header-bg\" style=\"background-color: #1e1b4b; background-image: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #312e81 100%); padding: 32px; border-radius: 12px 12px 0 0; text-align: left;\">'\n  + '<h1 class=\"header-title\" style=\"margin: 0 0 8px 0; font-size: 24px; font-weight: 700; color: #ffffff !important; line-height: 1.3;\">'\n  + '<span style=\"color: #ffffff !important;\">AI &amp; Automation Weekly Digest</span>'\n  + '</h1>'\n  + '<p class=\"header-date\" style=\"margin: 0; font-size: 14px; color: #e2e8f0 !important; opacity: 0.95;\">'\n  + '<span style=\"color: #e2e8f0 !important;\">' + dateStr + '</span>'\n  + '</p>'\n  + '</td>'\n  + '</tr>'\n  + '<tr>'\n  + '<td class=\"card-bg\" style=\"background-color: #ffffff; padding: 32px; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 12px 12px;\">'\n  + '<div class=\"text-muted divider\" style=\"font-size: 13px; color: #64748b; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #f1f5f9;\">'\n  + '<strong class=\"text-primary\" style=\"color: #0f172a;\">' + articleCount + ' articles</strong> analyzed from VentureBeat AI &amp; TechCrunch AI'\n  + '</div>'\n  + '<div>' + htmlContent + '</div>'\n  + '<div class=\"text-muted divider\" style=\"margin-top: 32px; padding-top: 16px; border-top: 1px solid #f1f5f9; font-size: 12px; color: #94a3b8; text-align: center;\">'\n  + '<p style=\"margin: 0;\">Generated automatically by AI-Powered Competitor Monitor</p>'\n  + '<p style=\"margin: 4px 0 0 0;\">Powered by n8n + Google Gemini</p>'\n  + '</div>'\n  + '</td>'\n  + '</tr>'\n  + '</table>'\n  + '</td>'\n  + '</tr>'\n  + '</table>'\n  + '</body>'\n  + '</html>';\n\nconst plainText = 'AI & AUTOMATION WEEKLY DIGEST\\n' + dateStr + '\\n' + articleCount + ' articles analyzed\\n\\n' + aiOutput + '\\n\\n---\\nGenerated by AI-Powered Competitor Monitor | Powered by n8n + Google Gemini';\n\nconst markdownText = '# AI & Automation Weekly Digest\\n*' + dateStr + '* | *' + articleCount + ' articles analyzed*\\n\\n' + aiOutput + '\\n\\n---\\n*Sources: VentureBeat AI & TechCrunch AI | Generated by n8n + Google Gemini*';\n\nreturn [{\n  json: {\n    formattedText: markdownText,\n    formattedHtml: emailHtml,\n    plainText: plainText,\n    subject: 'AI Weekly Digest - ' + dateStr + ' (' + articleCount + ' articles)',\n    meta: { generatedAt: new Date().toISOString(), articleCount: articleCount }\n  }\n}];\n"
+      },
+      "id": "5c85f036-ba8b-4717-a1a3-906ea992986c",
+      "name": "Format Professional Digest",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "youssefwael993@yahoo.com",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.formattedHtml }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "2be6e847-dc09-4e2a-9a91-1ea26ae1cfbf",
+      "name": "Send Digest Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1568,
+        288
+      ],
+      "webhookId": "5b902f33-c997-4db6-b9a0-dd060f05a8b9",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "9Q2kA6252DOd05N1",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "cb1c3606-d08b-4a5f-b5b4-d57b4f59e9a4",
+              "leftValue": "={{ $json.articleCount }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e2f08a54-71a2-4a0b-967b-2321487cfb3e",
+      "name": "Check Article Count",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        928,
+        288
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Weekly Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch VentureBeat AI Feed",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch TechCrunch AI Feed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch VentureBeat AI Feed": {
+      "main": [
+        [
+          {
+            "node": "Combine RSS Feeds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine RSS Feeds": {
+      "main": [
+        [
+          {
+            "node": "Parse & Filter Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch TechCrunch AI Feed": {
+      "main": [
+        [
+          {
+            "node": "Combine RSS Feeds",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "AI Market Intelligence Agent": {
+      "main": [
+        [
+          {
+            "node": "Format Professional Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Professional Digest": {
+      "main": [
+        [
+          {
+            "node": "Send Digest Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse & Filter Articles": {
+      "main": [
+        [
+          {
+            "node": "Check Article Count",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Article Count": {
+      "main": [
+        [
+          {
+            "node": "AI Market Intelligence Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini 3.5 Flash Lite Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Market Intelligence Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "e86716e5-6c2c-481e-95f6-593038c71a02",
+  "meta": {
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp",
+    "instanceId": "e802b936c9b43fb7bf4bd7ec19894a470f70faad6449c499998577cbd1ec4018"
+  },
+  "nodeGroups": [],
+  "id": "MxKqBeKoOp7CER34",
+  "tags": []
+}
