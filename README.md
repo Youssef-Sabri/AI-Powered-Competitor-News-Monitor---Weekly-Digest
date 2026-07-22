@@ -1,11 +1,6 @@
 # AI-Powered Competitor News Monitor & Weekly Digest
 
-[![n8n](https://img.shields.io/badge/n8n-v1.0+-ff6d5a?style=for-the-badge&logo=n8n)](https://n8n.io)
-[![Google Gemini](https://img.shields.io/badge/Model-Gemini_3.5_Flash_Lite-4285F4?style=for-the-badge&logo=google)](https://aistudio.google.com)
-[![MCP Enabled](https://img.shields.io/badge/MCP-Enabled-00c853?style=for-the-badge)](https://modelcontextprotocol.io)
-[![Status](https://img.shields.io/badge/Status-Active_&_Deployed-blue?style=for-the-badge)]()
-
-An automated, production-grade **n8n workflow** that monitors competitor and industry AI news on a weekly schedule, synthesizes raw articles using **Google Gemini 3.5 Flash Lite** into executive-ready market intelligence, and delivers styled, dark-mode-compatible HTML digests via email. Enabled for **Model Context Protocol (MCP)** remote invocation and workflow management.
+An automated, production-grade **n8n workflow** that monitors competitor and industry news on a recurring schedule, leverages **Google Gemini AI** to synthesize raw articles into executive-ready market intelligence, and delivers styled, dark-mode-compatible HTML digests via email. Built with native **Model Context Protocol (MCP)** integration for seamless AI agent orchestration.
 
 🔗 **Live Public n8n Workflow Link:** [https://youssefwael.app.n8n.cloud/workflow/MxKqBeKoOp7CER34](https://youssefwael.app.n8n.cloud/workflow/MxKqBeKoOp7CER34)
 
@@ -59,24 +54,24 @@ An automated, production-grade **n8n workflow** that monitors competitor and ind
 
 ## ✨ Key Features
 
-1. **High-Signal News Ingestion**:
-   - Fetches official RSS feeds from **VentureBeat AI** and **TechCrunch AI**.
-   - Handles HTTP redirects and implements automatic retry logic (3 attempts, 2s wait).
+1. **Automated Multi-Source Content Ingestion**:
+   - Ingests official news and RSS feeds from premier industry publications.
+   - Built-in request resiliency with automatic retry logic and redirect handling.
 
-2. **Robust XML & Multiline CDATA Parsing**:
-   - Custom JavaScript engine that strips multiline CDATA tags, unescapes HTML entities (`&amp;`, `&#8217;`, etc.), and normalizes titles.
-   - Filters articles strictly to a **7-day rolling window** and deduplicates by normalized title.
+2. **Intelligent Data Parsing & Deduplication**:
+   - Custom parsing engine that cleans raw XML/HTML markup and normalizes content.
+   - Enforces a rolling 7-day window and automatically deduplicates syndicated articles.
 
-3. **Executive AI Market Intelligence (Google Gemini 3.5 Flash Lite)**:
-   - Configured with a specialized Senior Analyst persona (low temperature `0.2` for high accuracy).
-   - Generates 5 structured sections: **Executive Summary**, **3–5 Key Trends** with inline article links, **Funding & M&A**, **Competitive Watchlist**, and **Actionable Recommendations**.
+3. **AI-Driven Executive Intelligence (Google Gemini)**:
+   - Leverages Google Gemini configured with a Senior Analyst persona for high-accuracy, data-driven synthesis.
+   - Generates 5 structured sections: Executive Summary, Key Trends with citations, Funding & M&A, Competitive Watchlist, and Actionable Recommendations.
 
-4. **Mobile Dark-Mode Compatible HTML Email**:
-   - Custom table-based HTML email template with dark-mode text-inversion protection spans and `@media (prefers-color-scheme: dark)` overrides.
-   - Ensures header text remains crisp and visible across all mobile email clients (iOS Mail, Yahoo Mail, Gmail).
+4. **Responsive & Dark-Mode Optimized Email Delivery**:
+   - Built with a universal, table-based HTML template for cross-client compatibility.
+   - Fully optimized for clear text readability in both Light and Dark mode across all desktop and mobile devices.
 
-5. **MCP Enabled (Model Context Protocol)**:
-   - Connects directly to AI tools (Claude, Antigravity, Cursor) via HTTP JSON-RPC 2.0 to trigger, inspect, or edit workflows programmatically.
+5. **Model Context Protocol (MCP) Integration**:
+   - Protocol-enabled endpoints allow AI agents to invoke, inspect, and manage workflow executions programmatically.
 
 ---
 
@@ -135,7 +130,7 @@ FORMAT RULES: Clean Markdown, 400-600 words total, every claim cites a source.
 1. **Import Workflow**:
    - Open your n8n instance (v1.0+).
    - Go to **Workflows** > **Import from File**.
-   - Select `AI-Powered Competitor News Monitor & Weekly Digest.json` or `workflow.json`.
+   - Select `AI-Powered Competitor News Monitor & Weekly Digest.json`.
 
 2. **Configure Credentials**:
    - **Google Gemini API**: Add your Google AI Studio API key.
@@ -144,12 +139,3 @@ FORMAT RULES: Clean Markdown, 400-600 words total, every claim cites a source.
 3. **Activate**:
    - Toggle workflow status to **Active**.
 
----
-
-## 📄 File Manifest
-
-- `AI-Powered Competitor News Monitor & Weekly Digest.json` — GUI-exported n8n workflow file.
-- `workflow.json` — Importable n8n workflow definition.
-- `.agents/AGENTS.md` — Agent instructions & MCP reference documentation.
-- `.gitignore` — Standard git ignore rules.
-- `README.md` — Project documentation.
